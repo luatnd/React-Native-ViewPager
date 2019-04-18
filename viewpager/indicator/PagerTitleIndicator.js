@@ -44,8 +44,9 @@ export default class PagerTitleIndicator extends Component {
     constructor(props) {
         super(props);
         this._preSelectedIndex = props.initialPage;
-        this._contentHorOffset = 0;
-        this._currentMaxHor = screenWidth;
+        this._visibleOffsetLeft = 0;
+        this._visibleOffsetRight = screenWidth;
+        this._scrollerWidth = -1;
         this._titleCount = props.titles.length || 0;
     }
 
@@ -109,12 +110,13 @@ export default class PagerTitleIndicator extends Component {
                  <ScrollView
                     scrollEventThrottle={1}
                     onScroll={e => {
-                        this._contentHorOffset = e.nativeEvent.contentOffset.x;
-                        this._currentMaxHor = screenWidth + this._contentHorOffset;
+                        this._visibleOffsetLeft = e.nativeEvent.contentOffset.x;
+                        this._visibleOffsetRight = screenWidth + this._visibleOffsetLeft;
                     }}
                     showsHorizontalScrollIndicator={false}
                     ref={c => {
                         this.scroller = c;
+                        window.tmp_scroller = c;
                     }}
                     horizontal={true}
                     style={{ flex: 1 }}
@@ -129,54 +131,28 @@ export default class PagerTitleIndicator extends Component {
         if(selectedIndex > this._titleCount -1 ) return ;
 
         const curItemLayoutInfo = itemLayoutInfo[selectedIndex];
-        const { width, x: curItemOffsetX } = curItemLayoutInfo.layout;
-        const curItemAbsPosition = width + curItemOffsetX + DEFAULT_ITEM_MARGIN; // add on margin
+        // console.log('{_visibleDetect} itemLayoutInfo: ', itemLayoutInfo);
 
-        let moveDir = NONE;
-        if (selectedIndex > this._preSelectedIndex) {
-            moveDir = FORWARD;
-        } else if (selectedIndex < this._preSelectedIndex) {
-            moveDir = BACKWARD;
+        if (!curItemLayoutInfo) {
+          return;
         }
 
-        if (moveDir === FORWARD) {
-            //indicator move forward
-            let lastItemOffsetX;
-            let lastItemAbsPosition;
-            if (selectedIndex < this._titleCount - 1) {
-                const nextLayoutInfo = itemLayoutInfo[selectedIndex + 1];
-                const width = nextLayoutInfo.layout.width;
-                lastItemOffsetX = nextLayoutInfo.layout.x;
-                lastItemAbsPosition = width + lastItemOffsetX + DEFAULT_ITEM_MARGIN;
-            } else if (selectedIndex === this._titleCount - 1) {
-                lastItemOffsetX = curItemOffsetX;
-                lastItemAbsPosition = curItemAbsPosition;
-            }
-            if (this._contentHorOffset > lastItemOffsetX) {
-                const deltaX = curItemOffsetX - DEFAULT_ITEM_MARGIN;
-                this.scroller.scrollTo({ x: deltaX });
-            } else if (this._currentMaxHor < lastItemAbsPosition) {
-                const deltaX = lastItemAbsPosition - this._currentMaxHor;
-                this.scroller.scrollTo({ x: this._contentHorOffset + deltaX });
-            }
-        } else if (moveDir === BACKWARD) {
-            //indicator move back
-            let lastItemOffsetX;
-            let lastItemAbsPosition;
-            if (selectedIndex > 0) {
-                const nextLayoutInfo = itemLayoutInfo[selectedIndex - 1];
-                const width = nextLayoutInfo.layout.width;
-                lastItemOffsetX = nextLayoutInfo.layout.x;
-                lastItemAbsPosition = width + lastItemOffsetX + DEFAULT_ITEM_MARGIN;
-            } else if (selectedIndex === 0) {
-                lastItemOffsetX = curItemOffsetX;
-                lastItemAbsPosition = curItemAbsPosition;
-            }
-            if (this._contentHorOffset > lastItemOffsetX || this._currentMaxHor < curItemAbsPosition) {
-                const deltaX = lastItemOffsetX - DEFAULT_ITEM_MARGIN;
-                this.scroller.scrollTo({ x: deltaX });
-            }
+        if (this._scrollerWidth < 0) {
+          // calculate scroller width
+          const tailItem = itemLayoutInfo[itemLayoutInfo.length - 1];
+          this._scrollerWidth = tailItem.layout.width + tailItem.layout.x;
+          // console.log('{_visibleDetect} _scrollerWitdh: ', this._scrollerWidth);
         }
+
+        // scroll to current item
+        const { width: currItemWidth, x: curItemOffsetX } = curItemLayoutInfo.layout;
+        let newPos = curItemOffsetX - (screenWidth - currItemWidth) / 2;
+        const minPos = 0;
+        const maxPos = this._scrollerWidth - screenWidth;
+
+        if (newPos < minPos) newPos = minPos;
+        if (newPos > maxPos) newPos = maxPos;
+        this.scroller.scrollTo({ x: newPos });
     }
 
     onPageSelected (e) {
